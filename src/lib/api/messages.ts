@@ -171,6 +171,13 @@ export async function createMessage(input: {
   created_by?: string | null
   targets: MessageTargetInput[]
 }): Promise<MessageRow> {
+  const {
+    data: { user },
+    error: authErr,
+  } = await supabase.auth.getUser()
+  if (authErr) throw authErr
+  if (!user) throw new Error('Not authenticated')
+
   const { data, error } = await supabase
     .from('messages')
     .insert({
@@ -181,6 +188,7 @@ export async function createMessage(input: {
       notes: input.notes?.trim() || null,
       is_template: input.is_template ?? false,
       created_by: input.created_by ?? null,
+      owner_id: user.id,
     })
     .select('id')
     .single()

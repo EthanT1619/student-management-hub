@@ -1,5 +1,6 @@
 import { supabase } from '../supabase'
 import type { TermRow } from '../types'
+import { assertStudentHubAdminClient } from '../hubAccess'
 
 export async function fetchTerms(): Promise<TermRow[]> {
   const { data, error } = await supabase
@@ -26,6 +27,7 @@ export async function createTerm(input: {
   end_date?: string | null
   set_current?: boolean
 }): Promise<TermRow> {
+  await assertStudentHubAdminClient()
   if (input.end_date && input.end_date < input.start_date) {
     throw new Error('종료일은 시작일보다 빠를 수 없습니다.')
   }
@@ -59,6 +61,7 @@ export async function updateTerm(input: {
   is_current: boolean
   was_current: boolean
 }): Promise<TermRow> {
+  await assertStudentHubAdminClient()
   if (input.end_date && input.end_date < input.start_date) {
     throw new Error('종료일은 시작일보다 빠를 수 없습니다.')
   }

@@ -4,12 +4,15 @@ import {
   createClass,
   createTerm,
   fetchClassListStats,
+  fetchLevels,
   fetchTerms,
   updateTerm,
 } from '../lib/api'
 import { DAYS_CODE_SELECT_OPTIONS, formatClassDisplay } from '../lib/classFormat'
 import { todayISO } from '../lib/constants'
-import type { DaysCode, TermRow } from '../lib/types'
+import { resolveClassLevelName } from '../lib/levelSelect'
+import type { DaysCode, LevelRow, TermRow } from '../lib/types'
+import { useAuth } from '../context/AuthContext'
 
 interface ClassStat {
   classRow: Awaited<ReturnType<typeof fetchClassListStats>>[number]['classRow']
@@ -19,6 +22,7 @@ interface ClassStat {
 }
 
 export function ClassesPage() {
+  const { isAdmin } = useAuth()
   const [items, setItems] = useState<ClassStat[]>([])
   const [terms, setTerms] = useState<TermRow[]>([])
   const [termId, setTermId] = useState('')
@@ -54,15 +58,16 @@ export function ClassesPage() {
       <div className="page-header">
         <h1>Classes</h1>
         <div className="row">
-          <button type="button" className="btn ghost" onClick={() => setShowTermForm(true)}>
-            + Term
-          </button>
+          {isAdmin && (
+            <button type="button" className="btn ghost" onClick={() => setShowTermForm(true)}>
+              + Term
+            </button>
+          )}
           <button type="button" className="btn primary" onClick={() => setShowForm(true)}>
             + Add Class
           </button>
         </div>
-      </div>
-      <p className="muted">
+      </div>      <p className="muted">
         Class = 학기 + Level + 요일 + 교시. 다음 학기/진급은 기존 반을 수정하지 말고 새 Class를
         만든 뒤 학생을 이동하세요.
       </p>
@@ -88,16 +93,17 @@ export function ClassesPage() {
             ))}
           </select>
         </label>
-        <button
-          type="button"
-          className="btn"
-          disabled={!activeTerm}
-          onClick={() => activeTerm && setEditingTerm(activeTerm)}
-        >
-          Edit Term
-        </button>
+        {isAdmin && (
+          <button
+            type="button"
+            className="btn"
+            disabled={!activeTerm}
+            onClick={() => activeTerm && setEditingTerm(activeTerm)}
+          >
+            Edit Term
+          </button>
+        )}
       </div>
-
       {error && <p className="error">{error}</p>}
 
       <div className="class-list">
@@ -141,6 +147,7 @@ export function ClassesPage() {
         <ClassCreateForm
           terms={terms}
           defaultTermId={termId}
+          isAdmin={isAdmin}
           onClose={() => setShowForm(false)}
           onSaved={async (created) => {
             setShowForm(false)
@@ -149,7 +156,7 @@ export function ClassesPage() {
           }}
         />
       )}
-      {showTermForm && (
+      {isAdmin && showTermForm && (
         <TermCreateForm
           onClose={() => setShowTermForm(false)}
           onSaved={async (id) => {
@@ -158,7 +165,7 @@ export function ClassesPage() {
           }}
         />
       )}
-      {editingTerm && (
+      {isAdmin && editingTerm && (
         <TermEditForm
           term={editingTerm}
           onClose={() => setEditingTerm(null)}
@@ -175,28 +182,47 @@ export function ClassesPage() {
 function ClassCreateForm({
   terms,
   defaultTermId,
+  isAdmin,
   onClose,
   onSaved,
 }: {
   terms: TermRow[]
   defaultTermId: string
+  isAdmin: boolean
   onClose: () => void
   onSaved: (created: Awaited<ReturnType<typeof createClass>>) => Promise<void>
 }) {
   const [termId, setTermId] = useState(defaultTermId)
+  const [levels, setLevels] = useState<LevelRow[]>([])
   const [levelName, setLevelName] = useState('')
+  const [newLevelName, setNewLevelName] = useState('')
   const [daysCode, setDaysCode] = useState<DaysCode>('MWF')
   const [period, setPeriod] = useState('')
   const [error, setError] = useState<string | null>(null)
   const [saving, setSaving] = useState(false)
+
+  useEffect(() => {
+    void fetchLevels()
+      .then((rows) => {
+        setLevels(rows)
+        if (rows[0] && !levelName) setLevelName(rows[0].name)
+      })
+      .catch((e) => setError(e instanceof Error ? e.message : 'Level load failed'))
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
 
   async function onSubmit(e: FormEvent) {
     e.preventDefault()
     setSaving(true)
     setError(null)
     try {
+      const resolved = resolveClassLevelName({
+        isAdmin,
+        selectedLevelName: levelName,
+        newLevelName,
+      })
       const created = await createClass({
-        level_name: levelName,
+        level_name: resolved,
         days_code: daysCode,
         period,
         term_id: termId || null,
@@ -209,10 +235,12 @@ function ClassCreateForm({
     }
   }
 
+  const previewLevel =
+    isAdmin && newLevelName.trim() ? newLevelName.trim() : levelName.trim() || '레벨'
   const preview = formatClassDisplay({
     days_code: daysCode,
     period: period || 'UNSET',
-    level_name: levelName.trim() || '레벨',
+    level_name: previewLevel,
   })
 
   return (
@@ -233,13 +261,35 @@ function ClassCreateForm({
           </label>
           <label>
             Level *
-            <input
+            <select
               value={levelName}
               onChange={(e) => setLevelName(e.target.value)}
-              placeholder="예: LSA1, DSC1"
-              required
-            />
+              required={!isAdmin || !newLevelName.trim()}
+              disabled={Boolean(isAdmin && newLevelName.trim())}
+            >
+              <option value="">선택</option>
+              {levels.map((l) => (
+                <option key={l.id} value={l.name}>
+                  {l.name}
+                </option>
+              ))}
+            </select>
           </label>
+          {isAdmin && (
+            <label>
+              새 Level (관리자 전용 — 공유 마스터에 추가)
+              <input
+                value={newLevelName}
+                onChange={(e) => setNewLevelName(e.target.value)}
+                placeholder="비워 두면 위 선택 Level 사용"
+              />
+            </label>
+          )}
+          {!isAdmin && (
+            <p className="muted small">
+              목록에 없는 Level은 관리자에게 추가를 요청하세요.
+            </p>
+          )}
           <label>
             요일 *
             <select

@@ -22,12 +22,9 @@ export function LoginPage() {
     <div className="login-page">
       <div className="login-card stack">
         <h1>Student Hub</h1>
-        <p className="muted">교사 전용 학생관리 · Google 계정 + 허용 목록</p>
+        <p className="muted">수업 전후 학생 기록과 후속을 한곳에서</p>
         {!configured && (
-          <p className="error">
-            `.env`에 `VITE_SUPABASE_URL` / `VITE_SUPABASE_ANON_KEY`를 설정하세요. (
-            <code>.env.example</code> 참고)
-          </p>
+          <p className="error">지금은 로그인할 수 없습니다. 잠시 후 다시 시도해 주세요.</p>
         )}
         {error && <p className="error">{error}</p>}
         <button
@@ -36,12 +33,9 @@ export function LoginPage() {
           disabled={busy || !isSupabaseConfigured()}
           onClick={() => void onGoogle()}
         >
-          {busy ? '연결 중…' : 'Google로 로그인'}
+          {busy ? '로그인 중…' : 'Google로 로그인'}
         </button>
-        <p className="muted small">
-          Google 로그인에 성공해도, 관리자가 등록한 허용 이메일이 아니면 Hub 데이터에 접근할 수
-          없습니다.
-        </p>
+        <p className="muted small">등록된 교사 계정으로만 이용할 수 있습니다.</p>
       </div>
     </div>
   )

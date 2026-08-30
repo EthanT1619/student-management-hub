@@ -4,6 +4,7 @@ import {
   fetchClass,
   fetchClassLinkage,
   fetchClassStudentSummaries,
+  fetchLevels,
   updateClass,
   type ClassStudentSummary,
 } from '../lib/api'
@@ -13,26 +14,34 @@ import {
   formatClassDisplay,
 } from '../lib/classFormat'
 import { MANAGEMENT_STATUS_LABEL, PARENT_STATUSES, labelOf } from '../lib/constants'
-import type { ClassRow, DaysCode } from '../lib/types'
+import { levelOptionsWithCurrent, resolveClassLevelName } from '../lib/levelSelect'
+import type { ClassRow, DaysCode, LevelRow } from '../lib/types'
+import { useAuth } from '../context/AuthContext'
 
 export function ClassDetailPage() {
   const { id } = useParams()
   const [classRow, setClassRow] = useState<ClassRow | null>(null)
   const [summaries, setSummaries] = useState<ClassStudentSummary[]>([])
   const [error, setError] = useState<string | null>(null)
+  const [loadState, setLoadState] = useState<'loading' | 'ready' | 'missing'>('loading')
   const [showEdit, setShowEdit] = useState(false)
   const [showEditWarning, setShowEditWarning] = useState(false)
   const [linkageLoading, setLinkageLoading] = useState(false)
 
   async function reload() {
     if (!id) return
+    setLoadState('loading')
     const [c, s] = await Promise.all([fetchClass(id), fetchClassStudentSummaries(id)])
     setClassRow(c)
     setSummaries(s)
+    setLoadState(c ? 'ready' : 'missing')
   }
 
   useEffect(() => {
-    void reload().catch((e) => setError(e instanceof Error ? e.message : 'Load failed'))
+    void reload().catch((e) => {
+      setError(e instanceof Error ? e.message : 'Load failed')
+      setLoadState('missing')
+    })
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [id])
 
@@ -54,8 +63,22 @@ export function ClassDetailPage() {
     }
   }
 
-  if (error && !classRow) return <p className="error">{error}</p>
-  if (!classRow) return <p className="muted">Loading…</p>
+  if (loadState === 'loading' && !classRow) {
+    return <p className="muted">Loading…</p>
+  }
+  if (loadState === 'missing' || !classRow) {
+    return (
+      <div className="page">
+        <p className="muted small">
+          <Link to="/classes">← Classes</Link>
+        </p>
+        {error && <p className="error">{error}</p>}
+        <p className="muted">
+          이 반을 볼 수 없거나 존재하지 않습니다. (소유하지 않은 반이거나 접근이 제한됨)
+        </p>
+      </div>
+    )
+  }
 
   return (
     <div className="page">
@@ -123,7 +146,10 @@ export function ClassDetailPage() {
           </Link>
         ))}
         {summaries.length === 0 && (
-          <p className="muted">이 반에 배정된 학생이 없습니다. Students에서 반을 지정하세요.</p>
+          <p className="muted">
+            이 반에 표시할 학생이 없습니다. 소유하지 않은 과거 반의 metadata만 보이는 경우일 수
+            있으며, 그 경우 다른 선생님 학생 명단은 표시되지 않습니다.
+          </p>
         )}
       </div>
 
@@ -191,12 +217,21 @@ function ClassEditForm({
   onClose: () => void
   onSaved: () => Promise<void>
 }) {
+  const { isAdmin } = useAuth()
+  const [levels, setLevels] = useState<LevelRow[]>([])
   const [levelName, setLevelName] = useState(classRow.levels?.name ?? '')
+  const [newLevelName, setNewLevelName] = useState('')
   const [daysCode, setDaysCode] = useState<DaysCode | string>(classRow.days_code)
   const [period, setPeriod] = useState(classRow.period)
   const [isActive, setIsActive] = useState(classRow.is_active)
   const [error, setError] = useState<string | null>(null)
   const [saving, setSaving] = useState(false)
+
+  useEffect(() => {
+    void fetchLevels()
+      .then((rows) => setLevels(levelOptionsWithCurrent(rows, classRow.levels?.name)))
+      .catch((e) => setError(e instanceof Error ? e.message : 'Level load failed'))
+  }, [classRow.levels?.name])
 
   async function onSubmit(e: FormEvent) {
     e.preventDefault()
@@ -205,7 +240,11 @@ function ClassEditForm({
     try {
       await updateClass({
         class_id: classRow.id,
-        level_name: levelName,
+        level_name: resolveClassLevelName({
+          isAdmin,
+          selectedLevelName: levelName,
+          newLevelName,
+        }),
         days_code: daysCode,
         period,
         is_active: isActive,
@@ -228,8 +267,33 @@ function ClassEditForm({
         <form className="stack" onSubmit={(e) => void onSubmit(e)}>
           <label>
             Level *
-            <input value={levelName} onChange={(e) => setLevelName(e.target.value)} required />
+            <select
+              value={levelName}
+              onChange={(e) => setLevelName(e.target.value)}
+              required={!isAdmin || !newLevelName.trim()}
+              disabled={Boolean(isAdmin && newLevelName.trim())}
+            >
+              <option value="">선택</option>
+              {levels.map((l) => (
+                <option key={l.id} value={l.name}>
+                  {l.name}
+                </option>
+              ))}
+            </select>
           </label>
+          {isAdmin && (
+            <label>
+              새 Level (관리자 전용)
+              <input
+                value={newLevelName}
+                onChange={(e) => setNewLevelName(e.target.value)}
+                placeholder="비워 두면 위 선택 Level 사용"
+              />
+            </label>
+          )}
+          {!isAdmin && (
+            <p className="muted small">목록에 없는 Level은 관리자에게 추가를 요청하세요.</p>
+          )}
           <label>
             요일 *
             <select value={daysCode} onChange={(e) => setDaysCode(e.target.value)}>

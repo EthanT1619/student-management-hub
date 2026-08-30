@@ -105,6 +105,13 @@ export async function createWorkNote(input: {
   classIds?: string[]
   followups?: { due_date: string | null; note: string }[]
 }): Promise<WorkNoteRow> {
+  const {
+    data: { user },
+    error: authErr,
+  } = await supabase.auth.getUser()
+  if (authErr) throw authErr
+  if (!user) throw new Error('Not authenticated')
+
   const { data, error } = await supabase
     .from('work_notes')
     .insert({
@@ -116,6 +123,7 @@ export async function createWorkNote(input: {
       is_important: input.is_important ?? false,
       status: input.status ?? 'open',
       created_by: input.created_by ?? null,
+      owner_id: user.id,
     })
     .select('id')
     .single()

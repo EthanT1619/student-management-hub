@@ -15,13 +15,16 @@ import {
 } from '../lib/api'
 import {
   ATTENTION_PARENT_STATUSES,
-  MANAGEMENT_STATUS_LABEL,
   PARENT_STATUSES,
   RECORD_TYPES,
   WORK_NOTE_TYPES,
   labelOf,
   todayISO,
 } from '../lib/constants'
+import {
+  FOCUS_OVERVIEW_PREVIEW_LIMIT,
+  partitionFocusOverviewPreview,
+} from '../lib/focusOverview'
 import type { Followup, RecordRow, Student, WorkFollowup } from '../lib/types'
 import { useAuth } from '../context/AuthContext'
 import { workNoteDisplayTitle } from '../lib/workNoteFormat'
@@ -54,6 +57,7 @@ export function DashboardPage({
   const [stamps, setStamps] = useState<RecordRow[]>([])
   const [recent, setRecent] = useState<RecordRow[]>([])
   const [focusOverview, setFocusOverview] = useState<FocusOverviewItem[]>([])
+  const [focusExpanded, setFocusExpanded] = useState(false)
   const [todayCount, setTodayCount] = useState(0)
   const [reviewSummary, setReviewSummary] = useState({
     all: 0,
@@ -114,8 +118,9 @@ export function DashboardPage({
           .select('student_id, title, students(korean_name)')
           .eq('status', 'open')
           .order('sort_order')
-          .limit(12)
+          .order('created_at')
         if (focusErr) throw focusErr
+        setFocusExpanded(false)
         setFocusOverview(
           (focusRows ?? []).map((row) => {
             const st = row.students as
@@ -156,6 +161,15 @@ export function DashboardPage({
         ATTENTION_PARENT_STATUSES.includes(s.parent_management_status),
       ),
     [students],
+  )
+
+  const focusPreview = useMemo(
+    () =>
+      partitionFocusOverviewPreview(
+        focusOverview,
+        focusExpanded ? Number.POSITIVE_INFINITY : FOCUS_OVERVIEW_PREVIEW_LIMIT,
+      ),
+    [focusOverview, focusExpanded],
   )
 
   const followupGapCount =
@@ -334,9 +348,9 @@ export function DashboardPage({
       </div>
 
       <div className="grid-2">
-        <section className="card">
+        <section className="card dash-pair-card">
           <h2>Students Needing Attention</h2>
-          <ul className="nested-list">
+          <ul className="dash-pair-list">
             {attention.map((s) => (
               <li key={s.id}>
                 <Link to={`/students/${s.id}`}>
@@ -345,7 +359,6 @@ export function DashboardPage({
                   )}
                   {s.korean_name}
                 </Link>{' '}
-                — {MANAGEMENT_STATUS_LABEL}{' '}
                 <span className={`badge badge-mgmt ${s.parent_management_status}`}>
                   {labelOf(PARENT_STATUSES, s.parent_management_status)}
                 </span>
@@ -355,11 +368,18 @@ export function DashboardPage({
           </ul>
         </section>
 
-        <section className="card">
-          <h2>Current Focus Overview</h2>
-          <ul className="nested-list">
-            {focusOverview.map((item, idx) => (
-              <li key={`${item.student_id}-${idx}`}>
+        <section className="card dash-pair-card">
+          <div className="page-header dash-pair-header">
+            <h2>Current Focus Overview</h2>
+            {focusOverview.length > 0 ? (
+              <span className="badge muted-count" aria-label={`open Focus ${focusOverview.length}개`}>
+                {focusOverview.length}
+              </span>
+            ) : null}
+          </div>
+          <ul className="dash-pair-list">
+            {focusPreview.visible.map((item, idx) => (
+              <li key={`${item.student_id}-${idx}-${item.title}`}>
                 <Link to={`/students/${item.student_id}`}>{item.korean_name}</Link>
                 {' — '}
                 {item.title}
@@ -367,6 +387,24 @@ export function DashboardPage({
             ))}
             {focusOverview.length === 0 && <li className="muted">없음</li>}
           </ul>
+          {!focusExpanded && focusPreview.hiddenCount > 0 && (
+            <button
+              type="button"
+              className="btn ghost small dash-pair-more"
+              onClick={() => setFocusExpanded(true)}
+            >
+              나머지 {focusPreview.hiddenCount}개 더 보기 (전체 {focusPreview.total}개)
+            </button>
+          )}
+          {focusExpanded && focusOverview.length > FOCUS_OVERVIEW_PREVIEW_LIMIT && (
+            <button
+              type="button"
+              className="btn ghost small dash-pair-more"
+              onClick={() => setFocusExpanded(false)}
+            >
+              접기 ({FOCUS_OVERVIEW_PREVIEW_LIMIT}개만)
+            </button>
+          )}
         </section>
       </div>
 

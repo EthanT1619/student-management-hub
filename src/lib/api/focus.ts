@@ -53,6 +53,28 @@ export async function pinRecordAsFocus(input: {
   })
 }
 
+export async function updateFocusItem(
+  id: string,
+  input: {
+    title: string
+    note?: string | null
+    tag_id?: string | null
+  },
+): Promise<CurrentFocusItem> {
+  const { data, error } = await supabase
+    .from('current_focus_items')
+    .update({
+      title: input.title.trim(),
+      note: input.note?.trim() ? input.note.trim() : null,
+      tag_id: input.tag_id || null,
+    })
+    .eq('id', id)
+    .select('*')
+    .single()
+  if (error) throw error
+  return data
+}
+
 export async function completeFocusItem(id: string): Promise<void> {
   const { error } = await supabase
     .from('current_focus_items')

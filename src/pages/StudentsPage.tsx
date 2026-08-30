@@ -7,6 +7,7 @@ import {
   createStudent,
   fetchClasses,
   fetchCurrentTerm,
+  fetchLevels,
   fetchStudents,
   fetchTerms,
   updateStudent,
@@ -20,8 +21,10 @@ import {
   labelOf,
 } from '../lib/constants'
 import type { AccentColor } from '../lib/constants'
-import type { ClassRow, DaysCode, EnrollmentStatus, Student, TermRow } from '../lib/types'
+import { resolveClassLevelName } from '../lib/levelSelect'
+import type { ClassRow, DaysCode, EnrollmentStatus, LevelRow, Student, TermRow } from '../lib/types'
 import { useSearchParams } from 'react-router-dom'
+import { useAuth } from '../context/AuthContext'
 
 export function StudentsPage() {
   const [searchParams, setSearchParams] = useSearchParams()
@@ -414,12 +417,24 @@ function InlineClassCreate({
   onClose: () => void
   onCreated: (row: ClassRow) => Promise<void>
 }) {
+  const { isAdmin } = useAuth()
   const [termId, setTermId] = useState(defaultTermId)
+  const [levels, setLevels] = useState<LevelRow[]>([])
   const [levelName, setLevelName] = useState('')
+  const [newLevelName, setNewLevelName] = useState('')
   const [daysCode, setDaysCode] = useState<DaysCode>('MWF')
   const [period, setPeriod] = useState('')
   const [error, setError] = useState<string | null>(null)
   const [saving, setSaving] = useState(false)
+
+  useEffect(() => {
+    void fetchLevels()
+      .then((rows) => {
+        setLevels(rows)
+        if (rows[0]) setLevelName(rows[0].name)
+      })
+      .catch((e) => setError(e instanceof Error ? e.message : 'Level load failed'))
+  }, [])
 
   async function onSubmit(e: FormEvent) {
     e.preventDefault()
@@ -427,7 +442,11 @@ function InlineClassCreate({
     setError(null)
     try {
       const created = await createClass({
-        level_name: levelName,
+        level_name: resolveClassLevelName({
+          isAdmin,
+          selectedLevelName: levelName,
+          newLevelName,
+        }),
         days_code: daysCode,
         period,
         term_id: termId || null,
@@ -457,8 +476,33 @@ function InlineClassCreate({
         </label>
         <label>
           Level *
-          <input value={levelName} onChange={(e) => setLevelName(e.target.value)} required />
+          <select
+            value={levelName}
+            onChange={(e) => setLevelName(e.target.value)}
+            required={!isAdmin || !newLevelName.trim()}
+            disabled={Boolean(isAdmin && newLevelName.trim())}
+          >
+            <option value="">선택</option>
+            {levels.map((l) => (
+              <option key={l.id} value={l.name}>
+                {l.name}
+              </option>
+            ))}
+          </select>
         </label>
+        {isAdmin && (
+          <label>
+            새 Level (관리자 전용)
+            <input
+              value={newLevelName}
+              onChange={(e) => setNewLevelName(e.target.value)}
+              placeholder="비워 두면 위 선택 Level 사용"
+            />
+          </label>
+        )}
+        {!isAdmin && (
+          <p className="muted small">목록에 없는 Level은 관리자에게 추가를 요청하세요.</p>
+        )}
         <label>
           요일 *
           <select

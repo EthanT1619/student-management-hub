@@ -162,6 +162,39 @@ tbody tr:hover { background: #f8fafc; }
 }
 .grid-2 { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: var(--space-4); }
 
+/* Dashboard Attention / Focus Overview pair — spacing only */
+.dash-pair-card {
+  padding-bottom: calc(var(--space-5) + var(--space-3));
+}
+.dash-pair-header {
+  margin-bottom: var(--space-3);
+}
+.dash-pair-header h2 {
+  margin-bottom: 0;
+}
+.dash-pair-list {
+  list-style: disc;
+  margin: 0;
+  padding-left: 1.15rem;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+}
+.dash-pair-list li {
+  line-height: 1.45;
+}
+.badge.muted-count {
+  background: #f4f6f8;
+  color: var(--muted);
+  border-color: var(--line);
+  font-weight: 600;
+  min-width: 1.6rem;
+  justify-content: center;
+}
+.dash-pair-more {
+  margin-top: var(--space-5);
+}
+
 .badge {
   display: inline-flex; align-items: center; gap: 0.25rem;
   background: var(--color-primary-soft); color: var(--color-primary);
@@ -225,7 +258,10 @@ tbody tr:hover { background: #f8fafc; }
   border: 1px solid var(--line); border-radius: var(--radius);
   padding: var(--space-3) var(--space-4); background: var(--surface);
   display: flex; flex-wrap: wrap; gap: var(--space-2); align-items: center;
+  justify-content: space-between;
 }
+.focus-item-main { flex: 1 1 12rem; min-width: 0; }
+.focus-item-actions { flex: 0 0 auto; }
 
 .modal-backdrop {
   position: fixed; inset: 0; background: rgba(16, 24, 32, 0.45);

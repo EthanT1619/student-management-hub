@@ -5,16 +5,14 @@ export function AccessDeniedPage() {
   return (
     <div className="login-page">
       <div className="login-card stack">
-        <h1>접근 권한 없음</h1>
-        <p className="error">이 계정은 Student Hub 사용 권한이 없습니다.</p>
+        <h1>접근할 수 없습니다</h1>
+        <p className="error">이 계정으로는 Student Hub를 사용할 수 없습니다.</p>
         {user?.email && (
           <p className="muted small">
-            로그인된 계정: <code>{user.email}</code>
+            현재 로그인: <code>{user.email}</code>
           </p>
         )}
-        <p className="muted small">
-          허용 이메일은 Supabase의 <code>allowed_student_hub_users</code>에 등록되어야 합니다.
-        </p>
+        <p className="muted small">권한이 필요하면 관리자에게 문의해 주세요.</p>
         <button type="button" className="btn primary" onClick={() => void signOut()}>
           로그아웃
         </button>

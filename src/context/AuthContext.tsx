@@ -9,7 +9,7 @@ import {
   type ReactNode,
 } from 'react'
 import { isSupabaseConfigured, supabase } from '../lib/supabase'
-import { checkStudentHubAccess } from '../lib/hubAccess'
+import { checkStudentHubAccess, checkStudentHubAdmin } from '../lib/hubAccess'
 import { resolveHubGate } from '../lib/hubGate'
 
 export type HubAccessStatus = 'loading' | 'authorized' | 'unauthorized' | 'signed_out'
@@ -21,6 +21,8 @@ interface AuthState {
   configured: boolean
   /** Hub allowlist gate (separate from Supabase session). */
   hubAccess: HubAccessStatus
+  /** Allowlist role=admin (UX only; RPC/RLS are the security boundary). */
+  isAdmin: boolean
   signInWithGoogle: () => Promise<string | null>
   signOut: () => Promise<void>
   refreshHubAccess: () => Promise<void>
@@ -32,11 +34,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [session, setSession] = useState<Session | null>(null)
   const [authLoading, setAuthLoading] = useState(true)
   const [hubAccess, setHubAccess] = useState<HubAccessStatus>('loading')
+  const [isAdmin, setIsAdmin] = useState(false)
   const configured = isSupabaseConfigured()
 
   const evaluateHubAccess = useCallback(async (next: Session | null) => {
     if (!next?.user) {
       setHubAccess('signed_out')
+      setIsAdmin(false)
       return
     }
     setHubAccess('loading')
@@ -50,8 +54,18 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           allowed,
         }),
       )
+      if (allowed) {
+        try {
+          setIsAdmin(await checkStudentHubAdmin())
+        } catch {
+          setIsAdmin(false)
+        }
+      } else {
+        setIsAdmin(false)
+      }
     } catch {
       setHubAccess('unauthorized')
+      setIsAdmin(false)
     }
   }, [])
 
@@ -83,7 +97,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, [configured, evaluateHubAccess])
 
   const signInWithGoogle = useCallback(async () => {
-    const redirectTo = `${window.location.origin}/login`
+    const redirectTo = new URL('login', `${window.location.origin}${import.meta.env.BASE_URL}`).href
     const { error } = await supabase.auth.signInWithOAuth({
       provider: 'google',
       options: { redirectTo },
@@ -94,6 +108,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const signOut = useCallback(async () => {
     await supabase.auth.signOut()
     setHubAccess('signed_out')
+    setIsAdmin(false)
   }, [])
 
   const refreshHubAccess = useCallback(async () => {
@@ -109,6 +124,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       loading,
       configured,
       hubAccess,
+      isAdmin,
       signInWithGoogle,
       signOut,
       refreshHubAccess,
@@ -118,6 +134,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       loading,
       configured,
       hubAccess,
+      isAdmin,
       signInWithGoogle,
       signOut,
       refreshHubAccess,

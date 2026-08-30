@@ -35,6 +35,7 @@ export {
   fetchFocusItems,
   createFocusItem,
   pinRecordAsFocus,
+  updateFocusItem,
   completeFocusItem,
 } from './focus'
 

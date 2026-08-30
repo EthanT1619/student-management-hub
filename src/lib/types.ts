@@ -21,6 +21,9 @@ export type FocusItemStatus = 'open' | 'done'
 export type TagCategory = 'academic' | 'learning_management' | 'classroom_state'
 export type DaysCode = 'MWF' | 'TT' | 'MW' | 'TF' | 'FS' | 'MTWTF' | 'UNSET'
 
+/** Hub allowlist ACL role (DB: allowed_student_hub_users.role). Not used by UI in Batch 1. */
+export type HubAclRole = 'admin' | 'teacher'
+
 export interface LevelRow {
   id: string
   name: string
@@ -43,6 +46,8 @@ export interface ClassRow {
   period: string
   is_active: boolean
   sort_order: number
+  /** Present after 016; null until ownership backfill. Unused by UI in Batch 1. */
+  owner_id?: string | null
   levels?: LevelRow | null
   terms?: TermRow | null
 }
@@ -67,6 +72,8 @@ export interface Student {
   accent_color: string | null
   enrollment_status: EnrollmentStatus
   parent_management_status: ParentManagementStatus
+  /** Present after 016; null until ownership backfill. Unused by UI in Batch 1. */
+  owner_id?: string | null
   created_at: string
   updated_at: string
   classes?: ClassRow | null
@@ -169,6 +176,8 @@ export interface MessageRow {
   notes: string | null
   is_template: boolean
   created_by: string | null
+  /** Authorization owner after 016; audit field remains created_by. */
+  owner_id?: string | null
   created_at: string
   updated_at: string
   message_targets?: MessageTarget[]
@@ -206,6 +215,8 @@ export interface WorkNoteRow {
   is_important: boolean
   status: WorkNoteStatus
   created_by: string | null
+  /** Authorization owner after 016; audit field remains created_by. */
+  owner_id?: string | null
   created_at: string
   updated_at: string
   work_note_students?: {
